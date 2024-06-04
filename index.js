@@ -105,6 +105,16 @@ async function getGuildChannels() {
 async function getUsers() {
     let users = new Map();
 
+    let guildMembersResponse = await limiter.schedule(() => {
+        return fetch(`${requestUrl}/guilds/${guildId}/members`, requestOptions);
+    });
+    let guildMembers = await guildMembersResponse.json();
+    
+    for (let i = 0; i < guildMembers.length; i++) {
+        let member = guildMembers[i];
+        users.set(member.user.id, false);
+    }
+    
     return users;
 }
 
