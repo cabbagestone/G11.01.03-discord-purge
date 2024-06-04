@@ -42,7 +42,7 @@ async function main() {
     
     /** @type {string[]} */
     let inactiveUserIds = getInactiveUsers(users);
-    let inactiveUsers = await getUsersForIds(inactiveUserIds);
+    let inactiveUsers = getUsersForIds(inactiveUserIds);
     
     inactiveUsers.forEach(user => {
         console.log(user.username + user.discriminator);
@@ -50,7 +50,7 @@ async function main() {
 }
 
 
-main();
+await main();
 
 /**
  * @returns {Promise<*[]>}
