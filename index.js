@@ -1,4 +1,12 @@
-require('dotenv').config();
+import 'dotenv/config';
+import Bottleneck from 'bottleneck';
+
+let limiter = new Bottleneck({
+    reservoir: 49,
+    reservoirRefreshAmount: 49,
+    reservoirRefreshInterval: 1000,
+    maxConcurrent: 1,
+});
 
 async function main() {
     let channels = await getGuildChannels();
@@ -10,8 +18,13 @@ async function main() {
 
     /** @type {string[]} */
     let inactiveUserIds = getInactiveUsers(users);
-    let inactiveUserUsernames = getUsernamesForIds(inactiveUserIds);
+    let inactiveUserUsernames = await getUsernamesForIds(inactiveUserIds);
+    
+    inactiveUserUsernames.forEach(username => {
+        console.log(username);
+    });
 }
+
 
 main();
 
@@ -40,12 +53,13 @@ async function processRecentUsersInChannel(channel, allUsers) {
     let cursor = '';
 
     while (!sixMonthsBack) {
-        let messages = getMessages(channel.id, cursor);
+        let messages = await getMessages(channel.id, cursor);
 
-        messages.forEach(message => {
+        for (let i = 0; i < messages.length; i++) {
+            let message = messages[i];
             if (message.timestamp < sixMonthsAgo) {
                 sixMonthsBack = true;
-                return;
+                break;
             }
 
             let user = message.author.id;
@@ -55,7 +69,7 @@ async function processRecentUsersInChannel(channel, allUsers) {
             }
 
             cursor = message.id;
-        });
+        }
     }
 }
 
