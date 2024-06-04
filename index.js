@@ -1,6 +1,9 @@
 import 'dotenv/config';
 import Bottleneck from 'bottleneck';
 
+let requestUrl = 'https://discord.com/api/v10';
+let token = process.env.DISCORD_TOKEN;
+
 let limiter = new Bottleneck({
     reservoir: 49,
     reservoirRefreshAmount: 49,
@@ -14,8 +17,13 @@ async function main() {
     /** @type {Map<string, boolean>} */
     let users = await getUsers();
 
-    await Promise.all(channels.map(channel => processRecentUsersInChannel(channel, users)));
-
+    await Promise.all(channels.map(channel => {
+        processRecentUsersInChannel(channel, users);
+        processActiveThreads(channel, users);
+    }));
+    
+    await processInactiveThreads(users);
+    
     /** @type {string[]} */
     let inactiveUserIds = getInactiveUsers(users);
     let inactiveUserUsernames = await getUsernamesForIds(inactiveUserIds);
@@ -46,7 +54,11 @@ async function getUsers() {
     return users;
 }
 
-async function processRecentUsersInChannel(channel, allUsers) {
+/**
+ * @param {*} channel
+ * @param {Map<string, boolean>} users
+ */
+async function processRecentUsersInChannel(channel, users) {
     let sixMonthsBack = false;
     let sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
@@ -64,14 +76,18 @@ async function processRecentUsersInChannel(channel, allUsers) {
 
             let user = message.author.id;
 
-            if (allUsers.has(user)) {
-                allUsers.set(user, true);
+            if (users.has(user)) {
+                users.set(user, true);
             }
 
             cursor = message.id;
         }
     }
 }
+
+async function processActiveThreads(channel, users) {}
+
+async function processInactiveThreads(users) {}
 
 /**
  * @param channel
