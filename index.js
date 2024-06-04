@@ -16,6 +16,9 @@ let requestUrl = 'https://discord.com/api/v10';
 let token = process.env.DISCORD_TOKEN;
 let guildId = process.env.DISCORD_GUILD_ID;
 
+/** @type {Map<string, any>} */
+let allChannelUsers = new Map();
+
 let requestOptions = {
     headers: {
         Authorization: `Bot ${token}`,
@@ -28,24 +31,6 @@ let limiter = new Bottleneck({
     reservoirRefreshInterval: 1000,
     maxConcurrent: 1,
 });
-
-const CHANNEL_TYPES = new Map(
-    Object.entries({
-        GUILD_TEXT: 0,
-        DM: 1,
-        GUILD_VOICE: 2,
-        GROUP_DM: 3,
-        GUILD_CATEGORY: 4,
-        GUILD_ANNOUNCEMENT: 5,
-        ANNOUNCEMENT_THREAD: 10,
-        PUBLIC_THREAD: 11,
-        PRIVATE_THREAD: 12,
-        GUILD_STAGE_VOICE: 13,
-        GUILD_DIRECTORY: 14,
-        GUILD_FORUM: 15,
-        GUILD_MEDIA: 16,
-    })
-);
 
 async function main() {
     let channels = await getGuildChannels();
@@ -71,12 +56,10 @@ main();
  * @returns {Promise<*[]>}
  */
 async function getGuildChannels() {
-    let channels = [];
-
     let response = await limiter.schedule(() => {
         return fetch(`${requestUrl}/guilds/${guildId}/channels`, requestOptions);
     });
-    channels = await response.json();
+    let channels = await response.json();
 
     let activeGuildThreadsResponse = await limiter.schedule(() => {
         return fetch(`${requestUrl}/guilds/${guildId}/threads`, requestOptions);
@@ -113,6 +96,7 @@ async function getUsers() {
     for (let i = 0; i < guildMembers.length; i++) {
         let member = guildMembers[i];
         users.set(member.user.id, false);
+        allChannelUsers.set(member.user.id, member.user);
     }
     
     return users;
@@ -150,14 +134,16 @@ async function processRecentUsersInChannel(channel, users) {
 }
 
 /**
- * @param channel
- * @param cursor
  * @returns {Promise<*[]>}
+ * @param {string} cursor
+ * @param {string} channelId
  */
-async function getMessages(channel, cursor) {
-    let messages = [];
-
-    return messages;
+async function getMessages(channelId, cursor) {
+    let response = await limiter.schedule(() => {
+        return fetch(`${requestUrl}/channels/${channelId}/messages?before=${cursor}`, requestOptions);
+    });
+    
+    return await response.json();
 }
 
 /**
@@ -177,10 +163,17 @@ function getInactiveUsers(users) {
 
 /**
  * @param {string[]} userIds
- * @returns {Promise<string[]>}
+ * @returns {*[]}
  */
-async function getUsersForIds(userIds) {
-    let usernames = [];
-
-    return usernames;
+function getUsersForIds(userIds) {
+    let userObjects = [];
+    
+    for (let i = 0; i < userIds.length; i++) {
+        let user = allChannelUsers.get(userIds[i]);
+        if (user) {
+            userObjects.push(user);
+        }
+    }
+    
+    return userObjects;
 }
