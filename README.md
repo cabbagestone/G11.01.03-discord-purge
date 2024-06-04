@@ -1,4 +1,4 @@
-# Discord Purge Script
+# P11.01.03 Discord Purge Script
 
 This script takes a guild id and token from the environment, and lists all users that were not active in the last 6
 months. (username + discriminator)
