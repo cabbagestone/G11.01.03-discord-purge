@@ -1,8 +1,26 @@
+/**
+ * Requires these permissions:
+ * - VIEW_CHANNEL
+ * - CONNECT
+ * - READ_MESSAGE_HISTORY
+ * - MANAGE_THREADS
+ * 
+ * Requires these intents:
+ * - GUILD_MEMBERS
+ */
+
 import 'dotenv/config';
 import Bottleneck from 'bottleneck';
 
 let requestUrl = 'https://discord.com/api/v10';
 let token = process.env.DISCORD_TOKEN;
+let guildId = process.env.DISCORD_GUILD_ID;
+
+let requestOptions = {
+    headers: {
+        Authorization: `Bot ${token}`,
+    },
+};
 
 let limiter = new Bottleneck({
     reservoir: 49,
@@ -11,25 +29,38 @@ let limiter = new Bottleneck({
     maxConcurrent: 1,
 });
 
+const CHANNEL_TYPES = new Map(
+    Object.entries({
+        GUILD_TEXT: 0,
+        DM: 1,
+        GUILD_VOICE: 2,
+        GROUP_DM: 3,
+        GUILD_CATEGORY: 4,
+        GUILD_ANNOUNCEMENT: 5,
+        ANNOUNCEMENT_THREAD: 10,
+        PUBLIC_THREAD: 11,
+        PRIVATE_THREAD: 12,
+        GUILD_STAGE_VOICE: 13,
+        GUILD_DIRECTORY: 14,
+        GUILD_FORUM: 15,
+        GUILD_MEDIA: 16,
+    })
+);
+
 async function main() {
     let channels = await getGuildChannels();
     
     /** @type {Map<string, boolean>} */
     let users = await getUsers();
 
-    await Promise.all(channels.map(channel => {
-        processRecentUsersInChannel(channel, users);
-        processActiveThreads(channel, users);
-    }));
-    
-    await processInactiveThreads(users);
+    await Promise.all(channels.map(channel => processRecentUsersInChannel(channel, users)));
     
     /** @type {string[]} */
     let inactiveUserIds = getInactiveUsers(users);
-    let inactiveUserUsernames = await getUsernamesForIds(inactiveUserIds);
+    let inactiveUsers = await getUsersForIds(inactiveUserIds);
     
-    inactiveUserUsernames.forEach(username => {
-        console.log(username);
+    inactiveUsers.forEach(user => {
+        console.log(user.username + user.discriminator);
     });
 }
 
@@ -41,6 +72,29 @@ main();
  */
 async function getGuildChannels() {
     let channels = [];
+
+    let response = await limiter.schedule(() => {
+        return fetch(`${requestUrl}/guilds/${guildId}/channels`, requestOptions);
+    });
+    channels = await response.json();
+
+    let activeGuildThreadsResponse = await limiter.schedule(() => {
+        return fetch(`${requestUrl}/guilds/${guildId}/threads`, requestOptions);
+    });
+    let activeGuildThreads = await activeGuildThreadsResponse.json();
+
+    for (let i = 0; i < channels.length; i++) {
+        let channel = channels[i];
+
+        let inactiveThreadsForChannelResponse = await limiter.schedule(() => {
+            return fetch(`${requestUrl}/channels/${channel.id}/threads`, requestOptions);
+        });
+        let inactiveThreadsForChannel = await inactiveThreadsForChannelResponse.json();
+
+        channels.push(...inactiveThreadsForChannel);
+    }
+
+    channels.push(...activeGuildThreads);
 
     return channels;
 }
@@ -85,10 +139,6 @@ async function processRecentUsersInChannel(channel, users) {
     }
 }
 
-async function processActiveThreads(channel, users) {}
-
-async function processInactiveThreads(users) {}
-
 /**
  * @param channel
  * @param cursor
@@ -119,7 +169,7 @@ function getInactiveUsers(users) {
  * @param {string[]} userIds
  * @returns {Promise<string[]>}
  */
-async function getUsernamesForIds(userIds) {
+async function getUsersForIds(userIds) {
     let usernames = [];
 
     return usernames;
